@@ -13,6 +13,7 @@
 #define PORT 7700
 #define MAX_BUFFER 8192
 #define MAX_EVENTS 64
+#define ADDR "127.0.0.1"
 
 void writeCenter(int,char *);
 void IterateLyric(int,char*,int,int);
@@ -36,9 +37,9 @@ int main(int agrc, char* argv[]){
     nodelay(stdscr, TRUE);
 
     //printf("attempting\n");
-    int sockfd, newsockfd;
+    int sockfd;
     char buffer[MAX_BUFFER];
-    struct sockaddr_in serv_addr, cli_addr;
+    struct sockaddr_in serv_addr;
     struct epoll_event events[MAX_EVENTS];
 
     if((sockfd = socket(AF_INET,SOCK_STREAM,0))<0){
@@ -55,35 +56,23 @@ int main(int agrc, char* argv[]){
     //printf("setopt\n");
 
     memset(&serv_addr, 0, sizeof(serv_addr));
-    memset(&cli_addr, 0, sizeof(cli_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
     int epfd = epoll_create(1);
     struct epoll_event sock_event;
 
-    if(bind(sockfd, (struct sockaddr *) &serv_addr, sizeof( serv_addr) )<0){
-        perror("BIND");
-        close(sockfd);
-        exit(1);
-    }
-    //printf("Bind success\n");
-
-    listen(sockfd, 3);
-    //printf("Listening on port: %d\n", PORT);
-    socklen_t clilen = sizeof((cli_addr));
-
-    if((newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen))<0){
-        perror("ACCEPT");
+    if(connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr))<0){
+        perror("CONNECT");
         close(sockfd);
         exit(1);
     }
     //printf("Accept\n");
 
     sock_event.events = EPOLLIN | EPOLLET;
-    sock_event.data.fd = newsockfd;
-    epoll_ctl(epfd, EPOLL_CTL_ADD,newsockfd,&sock_event);
+    sock_event.data.fd = sockfd;
+    epoll_ctl(epfd, EPOLL_CTL_ADD,sockfd,&sock_event);
 
     while (1){
         int ready = epoll_wait(epfd,events,MAX_EVENTS,100);
@@ -92,7 +81,7 @@ int main(int agrc, char* argv[]){
 
             memset(buffer, 0, sizeof(buffer));
             int bytes_recvd;
-            if ((bytes_recvd = recv(newsockfd,buffer,MAX_BUFFER - 1,0))<0){
+            if ((bytes_recvd = recv(sockfd,buffer,MAX_BUFFER - 1,0))<0){
                 perror("RECV");
                 exit(1);
             }

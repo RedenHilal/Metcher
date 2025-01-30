@@ -2,7 +2,20 @@ import {spawn} from "node:child_process"
 import axios from "axios"
 import net from "net"
 
-const socket = new net.Socket()
+let socket = null;
+
+const server = net.createServer((sockets)=>{
+    socket = sockets;
+
+    sockets.on("end",()=>{
+        console.log("client Disconnected");
+        socket = null;
+    })
+})
+
+server.listen(7700, ()=>{
+    console.log("Server Listening on port 7700")
+});
 const PORT = 7700
 
 const arg = process.argv
@@ -14,13 +27,6 @@ if (arg.length>2){
 
 
 (async function main(){
-    socket.connect(PORT,"127.0.0.1",()=>{
-        console.log("Connecting...")
-    })
-    
-    socket.on("connect",()=>{
-        console.log("Connect Success");
-    })
     
     fetchLyric();
     
@@ -60,6 +66,7 @@ async function fetchLyric(){
             const lyricBetter = lyric.replace(/\n+/g, "\n")
             
             const encoded = encodeMessage(lyricBetter)
+            if(!socket) throw {message:"",code : 3};
             if(!socket.write(encoded)){
                 throw {message : "",code : 2}
             }
@@ -68,8 +75,11 @@ async function fetchLyric(){
         catch(err){
             if (err.code === 2){
                 console.log("Failed send")
-            }else 
-            console.log("Cant found song. either server error or bad metadata")
+            } else if(err.code == 3){
+
+            }
+            else 
+            console.log("Cant found song. either server error or bad metadata" + err.code);
         }
     })
 
